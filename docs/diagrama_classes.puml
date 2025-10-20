@@ -1,0 +1,149 @@
+@startuml NataDoCampo
+
+' Entidades principais
+class Usuario {
+  +id: int
+  +nome: string
+  +email: string
+  +senha_hash: string
+  +privilegio: enum
+  +ativo: boolean
+  +data_criacao: timestamp
+}
+
+class Cliente {
+  +id: int
+  +tipo_cliente_id: int
+  +codigo_cliente: string
+  +razao_social: string
+  +cnpj_cpf: string
+  +cidade: string
+  +uf: string
+  +telefone: string
+  +email: string
+  +endereco: string
+  +data_cadastro: datetime
+}
+
+class Produto {
+  +id: int
+  +sku: string
+  +nome: string
+  +unidade_medida: string
+  +limite_alerta: decimal
+}
+
+class Venda {
+  +id: int
+  +cliente_id: int
+  +tipo_transacao: enum
+  +usuario_vendedor: int
+  +data_venda: datetime
+  +data_entrega: date
+  +forma_pagamento: string
+  +valor_total: decimal
+  +valor_custo_base: decimal
+  +status: string
+  +usuario_validador: int
+  +data_validacao: datetime
+}
+
+class ItemVenda {
+  +id: int
+  +venda_id: int
+  +produto_id: int
+  +quantidade: int
+  +preco_unitario: decimal
+  +num_lote: string
+  +status_lote: enum
+  +data_vencimento: date
+}
+
+class LoteEstoque {
+  +id: int
+  +produto_id: int
+  +fornecedor_id: int
+  +data_entrada: date
+  +num_lote: string
+  +status_lote: string
+  +data_vencimento: date
+  +quantidade: decimal
+  +saldo_atual: decimal
+  +usuario_id: int
+  +observacao: text
+  +data_registro: datetime
+}
+
+class MovimentacaoEstoque {
+  +id: int
+  +lote_id: int
+  +produto_id: int
+  +tipo: enum
+  +quantidade: decimal
+  +data_movimentacao: date
+  +usuario_id: int
+  +observacao: text
+  +data_registro: datetime
+}
+
+class ClubeNataMembro {
+  +id: int
+  +cliente_id: int
+  +indicado_por_id: int
+  +pontuacao: decimal
+  +data_adesao: datetime
+}
+
+class ClubeNataRecompensa {
+  +id: int
+  +nome: string
+  +descricao: text
+  +custo_pontos: int
+  +status: enum
+}
+
+class ClubeNataResgate {
+  +id: int
+  +cliente_id: int
+  +recompensa_id: int
+  +pontos_utilizados: int
+  +data_resgate: datetime
+}
+
+class Fornecedor {
+  +id: int
+  +nome_fantasia: string
+  +razao_social: string
+  +cnpj: string
+  +contato: string
+  +data_cadastro: datetime
+}
+
+class TipoCliente {
+  +id: int
+  +nome: string
+}
+
+class Preco {
+  +id: int
+  +produto_id: int
+  +tipo_cliente_id: int
+  +preco: decimal
+}
+
+' Relacionamentos
+Cliente "1" -- "n" Venda
+Cliente "1" -- "1" TipoCliente
+Cliente "1" -- "0..1" ClubeNataMembro
+Venda "1" -- "n" ItemVenda
+Produto "1" -- "n" ItemVenda
+Produto "1" -- "n" LoteEstoque
+Produto "1" -- "n" Preco
+LoteEstoque "1" -- "n" MovimentacaoEstoque
+Usuario "1" -- "n" Venda
+Fornecedor "1" -- "n" LoteEstoque
+TipoCliente "1" -- "n" Preco
+ClubeNataMembro "1" -- "n" ClubeNataResgate
+ClubeNataRecompensa "1" -- "n" ClubeNataResgate
+
+@enduml
