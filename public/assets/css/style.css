@@ -1,0 +1,513 @@
+/* style.css: Tema Nata do Campo - Profissional e Responsivo */
+
+:root {
+    /* Paleta de Cores da Nata do Campo (Leite, Verde e Ouro) */
+    --primary-color: #5CA8DD; /* Verde Escuro da Gestão */
+    --primary-light: #ACCDEC; 
+    --secondary-color: #107BC0; /* Destaque Laticínios / Ouro */
+    --text-color: #333333; 
+    --background-color: #f4f7f9; /* Fundo Suave */
+    --card-bg: #ffffff; 
+    --border-color: #e0e0e0; 
+    --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+
+    /* Cores de Status e Ação */
+    --success-color: #388e3c; /* Liberado */
+    --warning-color: #ff9800; /* Pendente */
+    --danger-color: #d32f2f; /* Rejeitado/Erro */
+
+    /* Estrutura de Espaçamento */
+    --spacing-xs: 5px;
+    --spacing-sm: 10px;
+    --spacing-md: 20px;
+    --spacing-lg: 30px;
+
+    /* Variáveis para Layout */
+    --sidebar-width: 250px;
+    --header-height: 55px; /* Altura do header padrão */
+}
+
+* { 
+    box-sizing: border-box; 
+    margin: 0; 
+    padding: 0; 
+}
+body { 
+    font-family: 'Segoe UI', Arial, sans-serif; 
+    background-color: var(--background-color); 
+    color: var(--text-color); 
+    line-height: 1.6;
+}
+a { 
+    text-decoration: none; 
+    color: var(--primary-color); 
+}
+a:hover { 
+    color: var(--primary-light); 
+}
+
+/* ------------------------------------------- */
+/* 1. ESTRUTURA DE LAYOUT (Header, Sidebar, Main) */
+/* ------------------------------------------- */
+
+/* Header (Barra Superior) */
+.top-header {
+    background-color: var(--card-bg);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    padding: var(--spacing-sm) var(--spacing-md);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    /* CRÍTICO: Header fixo no topo */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: var(--header-height);
+    z-index: 1000;
+}
+.top-header .logo img { 
+    height: 35px; 
+}
+
+/* Botão de menu (hambúrguer) - Invisível no Desktop */
+.menu-toggle {
+    display: none; /* Escondido por padrão no desktop */
+    background: none;
+    border: none;
+    color: var(--text-color);
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0 10px;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    font-size: 0.95rem;
+    color: #666;
+}
+.user-info .user-name {
+    font-weight: 600;
+}
+.user-info .btn-logout {
+    color: var(--danger-color);
+    font-weight: 700;
+    background: none;
+    border: none;
+    padding: var(--spacing-sm);
+    cursor: pointer;
+}
+.user-info .btn-logout:hover {
+    text-decoration: underline;
+}
+
+/* Container Principal (Apenas organiza o espaço) */
+.main-layout {
+    display: flex;
+    /* CRÍTICO: Espaço para o Header e a Sidebar (Desktop) */
+    padding-top: var(--header-height); 
+    padding-left: var(--sidebar-width); /* Espaço da sidebar no desktop */
+    min-height: 100vh;
+}
+
+/* Sidebar (Menu Lateral) */
+.sidebar {
+    /* CRÍTICO: Sidebar fixa, ocupa 100% da altura da tela */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: var(--sidebar-width);
+    height: 100vh; 
+    
+    background-color: var(--primary-color);
+    color: #fff;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+
+    /* Propriedades para o Footer Fixo (Flexbox) */
+    display: flex; 
+    flex-direction: column; 
+    justify-content: space-between; 
+    transition: margin-left 0.3s ease-in-out;
+    z-index: 900; /* Abaixo do header */
+}
+
+.sidebar-nav {
+    /* Desce o menu para baixo do header */
+    padding-top: calc(var(--header-height) + var(--spacing-md)); 
+    flex-grow: 1; /* Ocupa o espaço restante */
+    overflow-y: auto; /* Adiciona scroll se os links excederem a tela */
+}
+
+/* Links da Navegação */
+.sidebar-nav a {
+    display: flex;
+    align-items: center;
+    padding: var(--spacing-sm) var(--spacing-md);
+    color: #fff;
+    font-size: 1rem;
+    transition: background-color 0.2s;
+    border-left: 5px solid transparent;
+}
+.sidebar-nav a:hover,
+.sidebar-nav a.active {
+    background-color: var(--primary-light);
+    border-left-color: var(--secondary-color);
+}
+.sidebar-nav a i {
+    margin-right: var(--spacing-sm);
+    width: 20px;
+    text-align: center;
+}
+.nav-separator {
+    color: var(--primary-light);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    padding: var(--spacing-sm) var(--spacing-md);
+    margin-top: var(--spacing-sm);
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Footer da Sidebar */
+.sidebar-footer {
+    padding: var(--spacing-sm) var(--spacing-md);
+    background-color: #fff; /* Fundo branco para contraste */
+    color: var(--text-color);
+    font-size: 0.8rem;
+    text-align: center;
+    border-top: 1px solid var(--border-color);
+    flex-shrink: 0; 
+}
+.sidebar-footer p {
+    margin: 0;
+    line-height: 1.4;
+}
+
+/* Conteúdo Principal */
+.main-content {
+    flex-grow: 1;
+    padding: var(--spacing-lg);
+    background-color: var(--background-color);
+}
+.container {
+    max-width: 100%; 
+    margin: 0;
+    padding: 0;
+}
+h1 { 
+    color: var(--primary-color); 
+    border-bottom: 2px solid var(--border-color); 
+    padding-bottom: var(--spacing-sm); 
+    margin-bottom: var(--spacing-md); 
+    font-size: 1.8rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+h1 i { font-size: 1.5rem; }
+
+
+/* ------------------------------------------- */
+/* 2. COMPONENTES (Formulários, Botões, Cards) - RESTAURADO */
+/* ------------------------------------------- */
+
+/* Formulários */
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: var(--card-bg);
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+fieldset {
+    border: 1px solid var(--border-color);
+    padding: var(--spacing-md);
+    margin-bottom: var(--spacing-md);
+    border-radius: 8px;
+}
+legend {
+    font-weight: 700;
+    color: var(--primary-light);
+    padding: 0 10px;
+}
+.full-width {
+    grid-column: 1 / -1;
+}
+.form-group label { 
+    display: block; 
+    margin-bottom: 0.3rem; 
+    font-weight: 600; 
+    font-size: 0.9rem;
+}
+.form-control, select.form-control { 
+    display: block; 
+    width: 100%; 
+    padding: 0.7rem; 
+    font-size: 1rem; 
+    border: 1px solid #c0c0c0; 
+    border-radius: 6px; 
+    transition: border-color 0.2s;
+}
+.form-control:focus {
+    border-color: var(--primary-light);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 77, 64, 0.2);
+}
+
+/* Botões */
+.btn { 
+    display: inline-flex; 
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    font-weight: 500; 
+    text-align: center; 
+    padding: 0.6rem 1.2rem; 
+    font-size: 1rem; 
+    border-radius: 6px; 
+    cursor: pointer; 
+    border: 1px solid transparent; 
+    transition: background-color 0.2s, box-shadow 0.2s;
+}
+.btn-primary { 
+    color: #fff; 
+    background-color: var(--primary-light); 
+    border-color: var(--primary-light); 
+}
+.btn-primary:hover { 
+    background-color: var(--primary-color); 
+    border-color: var(--primary-color); 
+}
+.btn-secondary {
+    color: var(--text-color);
+    background-color: #e0e0e0;
+}
+.btn-secondary:hover {
+    background-color: #bdbdbd;
+}
+.btn-danger {
+    color: #fff;
+    background-color: var(--danger-color);
+}
+.btn-danger:hover {
+    background-color: #a00000;
+}
+.btn-sm {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.85rem;
+}
+
+/* Cards de Resumo */
+.resumo-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+}
+.card {
+    background: var(--card-bg);
+    padding: var(--spacing-md);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    text-align: left;
+    border-left: 5px solid var(--primary-light);
+}
+.card h3 {
+    font-size: 0.9rem;
+    color: #666;
+    margin-top: 0;
+    text-transform: uppercase;
+}
+.card p {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin: 5px 0 0;
+    color: var(--primary-color);
+}
+.card.verde { border-left-color: var(--success-color); }
+.card.verde p { color: var(--success-color); }
+.card.amarelo { border-left-color: var(--warning-color); }
+.card.amarelo p { color: var(--warning-color); }
+
+/* Tabela de Dados (Data Tables) */
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    background-color: var(--card-bg);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+}
+.data-table { 
+    width: 100%; 
+    border-collapse: collapse; 
+}
+.data-table th, .data-table td { 
+    padding: 12px 15px; 
+    text-align: left; 
+    border-bottom: 1px solid var(--border-color); 
+    font-size: 0.95rem;
+}
+.data-table th { 
+    background-color: var(--primary-light); 
+    color: white; 
+    font-weight: 600; 
+    white-space: nowrap;
+}
+.data-table tbody tr:last-child td {
+    border-bottom: none;
+}
+.data-table tbody tr:hover {
+    background-color: #f0f3f6;
+    cursor: pointer;
+}
+
+/* Status Badges */
+.status-badge { 
+    padding: 5px 10px; 
+    border-radius: 15px; 
+    font-size: 0.8rem; 
+    font-weight: 700; 
+    white-space: nowrap;
+}
+.status-Pendente { 
+    background-color: #fff3cd; 
+    color: var(--warning-color); 
+    border: 1px solid var(--warning-color);
+}
+.status-Liberado { 
+    background-color: #d4edda; 
+    color: var(--success-color); 
+    border: 1px solid var(--success-color);
+}
+.status-Rejeitado { 
+    background-color: #f8d7da; 
+    color: var(--danger-color); 
+    border: 1px solid var(--danger-color);
+}
+
+/* Feedback/Alertas */
+.feedback-message { 
+    padding: var(--spacing-sm) var(--spacing-md); 
+    margin-bottom: var(--spacing-md); 
+    border-radius: 4px; 
+    font-weight: 500; 
+}
+.status-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+.status-error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+.status-info { background-color: #cce5ff; color: #004085; border: 1px solid #b8daff; }
+
+/* ------------------------------------------- */
+/* 3. LAYOUT ESPECÍFICO DE VENDAS E LOGIN      */
+/* ------------------------------------------- */
+
+/* Login */
+.login-body { 
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
+    min-height: 100vh; 
+    background-color: var(--primary-color); 
+}
+.login-container { 
+    width: 100%; 
+    max-width: 400px; 
+    padding: 40px; 
+    background-color: var(--card-bg); 
+    border-radius: 10px; 
+    box-shadow: var(--shadow); 
+    text-align: center; 
+}
+.login-container .logo img { 
+    height: 60px; 
+    margin-bottom: var(--spacing-lg); 
+}
+
+/* Fluxo de Venda (Sumário Flutuante) */
+.venda-summary-fixed {
+    position: fixed;
+    bottom: 0;
+    right: 0;
+    width: 100%;
+    background-color: var(--primary-light);
+    color: white;
+    padding: var(--spacing-sm) var(--spacing-md);
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.15);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 1.1rem;
+    z-index: 999;
+}
+.venda-summary-fixed strong {
+    font-size: 1.5rem;
+}
+/* Espaço para o sumário flutuante */
+#form_venda {
+    padding-bottom: 70px; 
+}
+
+
+/* ------------------------------------------- */
+/* 4. MEDIA QUERIES (Responsividade)           */
+/* ------------------------------------------- */
+
+@media (max-width: 767px) {
+    
+    /* 1. LAYOUT PRINCIPAL E HEADER NO MOBILE */
+    .top-header {
+        /* Garante que o botão e o logo fiquem lado a lado */
+        display: flex; 
+        align-items: center;
+        gap: 10px;
+    }
+
+    /* MOSTRA O BOTÃO DE MENU */
+    .menu-toggle {
+        display: block; 
+    }
+    
+    /* REMOVE A MARGEM FIXA DO LAYOUT */
+    .main-layout {
+        padding-left: 0; 
+        padding-top: var(--header-height); /* Garante que o conteúdo comece abaixo do header */
+        flex-direction: column;
+    }
+    
+    /* OCULTA INFORMAÇÃO SECUNDÁRIA */
+    .top-header .user-name span:last-child {
+        display: none; 
+    }
+
+    /* 2. SIDEBAR OCULTA POR PADRÃO */
+    .sidebar {
+        /* CRÍTICO: Oculta a sidebar para a esquerda */
+        margin-left: calc(0px - var(--sidebar-width)); /* Esconde 250px */
+        top: 0;
+        height: 100vh;
+        box-shadow: var(--shadow); /* Adiciona sombra ao menu flutuante */
+    }
+
+    .sidebar-nav {
+        /* CRÍTICO: Ajusta o NAV para começar logo após o header */
+        padding-top: calc(var(--header-height) + var(--spacing-md));
+    }
+    
+    /* 3. SIDEBAR ABERTA */
+    body.menu-open .sidebar {
+        margin-left: 0; /* Desliza a sidebar para a posição visível */
+    }
+
+    /* 4. AJUSTE DO SUMÁRIO DE VENDA */
+    .venda-summary-fixed {
+        justify-content: space-around;
+        padding: 10px 5px;
+    }
+    .venda-summary-fixed .label {
+        display: none;
+    }
+}
