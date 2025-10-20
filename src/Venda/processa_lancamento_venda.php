@@ -64,65 +64,43 @@ try {
     $venda_id = $conn->insert_id;
     $stmt_venda->close();
 
-    // 3. Processa cada item de venda
-    $sql_item = "INSERT INTO itens_venda (venda_id, produto_id, quantidade, preco_unitario, subtotal, preco_custo_base) 
-                 VALUES (?, ?, ?, ?, ?, ?)";
-    
+    // 3. Prepara statements para uso no loop
+    // Insert em itens_venda
+    $sql_item = "INSERT INTO itens_venda (venda_id, produto_id, quantidade, preco_unitario, num_lote, status_lote, data_vencimento) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?)";
     $stmt_item = $conn->prepare($sql_item);
     if ($stmt_item === false) throw new Exception("Erro ao preparar item_venda: " . $conn->error);
     
-    // 4. Lógica de Baixa no Estoque (FIFO/FEFO)
-    // Usaremos a tabela lotes_estoque para garantir a rastreabilidade
-    $sql_lote_update = "UPDATE lotes_estoque SET quantidade_disponivel = quantidade_disponivel - ?, baixa_por = 'Venda', baixa_data = NOW(), venda_id = ? WHERE id = ?";
+    // Update do saldo do lote
+    $sql_lote_update = "UPDATE lotes_estoque SET saldo_atual = saldo_atual - ? WHERE id = ?";
     $stmt_lote_update = $conn->prepare($sql_lote_update);
     if ($stmt_lote_update === false) throw new Exception("Erro ao preparar update_lote: " . $conn->error);
 
-    $sql_estoque_update = "UPDATE produtos SET estoque_atual = estoque_atual - ? WHERE id = ?";
-    $stmt_estoque_update = $conn->prepare($sql_estoque_update);
-    if ($stmt_estoque_update === false) throw new Exception("Erro ao preparar update_produto: " . $conn->error);
-    
+    // Insert na movimentação de estoque
+    $sql_movimentacao = "INSERT INTO movimentacao_estoque 
+                        (lote_id, produto_id, tipo, quantidade, data_movimentacao, usuario_id, observacao) 
+                        VALUES (?, ?, 'SAIDA', ?, NOW(), ?, CONCAT('Venda ID: ', ?))";
+    $stmt_movimentacao = $conn->prepare($sql_movimentacao);
+    if ($stmt_movimentacao === false) throw new Exception("Erro ao preparar movimentacao: " . $conn->error);
 
+    // 4. Processa cada item de venda
     foreach ($itens_venda as $item) {
-        $produto_id     = (int)$item['produto_id'];
-        $quantidade     = (float)$item['quantidade'];
+        $produto_id = (int)$item['produto_id'];
+        $quantidade_total = (float)$item['quantidade'];
         $preco_unitario = (float)$item['preco_unitario'];
-        $preco_custo_base = (float)$item['preco_custo_base']; // Preço do PDV Indústria
+        $quantidade_restante = $quantidade_total;
         
-        $subtotal = $quantidade * $preco_unitario;
-
-        // 3a. Insere o item na tabela 'itens_venda'
-        $stmt_item->bind_param("iiddds", 
-            $venda_id, 
-            $produto_id, 
-            $quantidade, 
-            $preco_unitario, 
-            $subtotal,
-            $preco_custo_base // Registra o custo base individualmente
-        );
-        if (!$stmt_item->execute()) throw new Exception("Erro ao inserir item_venda: " . $stmt_item->error);
-        
-        // 4a. Baixa do Estoque (Lógica FIFO/FEFO)
-        $quantidade_restante = $quantidade;
-        
-        // Seleciona lotes disponíveis (Liberado Todos ou Liberado VDI) e ordena por Data de Validade (FEFO)
-        // Se a data de validade não for usada, a ordenação por data de entrada (FIFO) é o padrão.
-        $sql_lotes = "
-            SELECT 
-                id, 
-                quantidade_disponivel 
-            FROM lotes_estoque 
-            WHERE 
-                produto_id = ? 
-                AND quantidade_disponivel > 0
-                AND (status_lote = 'Liberado Todos' OR status_lote = 'Liberado VDI')
-            ORDER BY 
-                data_validade ASC, -- FEFO (First Expired, First Out)
-                data_entrada ASC    -- FIFO (First In, First Out)
-            LIMIT 10 -- Limita o número de lotes para processar
-        ";
+        // Busca lotes disponíveis (FIFO/FEFO)
+        $sql_lotes = "SELECT id, saldo_atual, num_lote, status_lote, data_vencimento 
+                      FROM lotes_estoque 
+                      WHERE produto_id = ? 
+                        AND saldo_atual > 0 
+                        AND status_lote = 'Liberado Todos'
+                      ORDER BY data_vencimento ASC, data_entrada ASC";
         
         $stmt_lotes = $conn->prepare($sql_lotes);
         if ($stmt_lotes === false) throw new Exception("Erro ao preparar busca de lotes: " . $conn->error);
+        
         $stmt_lotes->bind_param("i", $produto_id);
         $stmt_lotes->execute();
         $result_lotes = $stmt_lotes->get_result();
@@ -131,56 +109,82 @@ try {
             throw new Exception("Estoque insuficiente para o Produto ID {$produto_id}. Nenhum lote disponível.");
         }
 
-        while ($row_lote = $result_lotes->fetch_assoc() && $quantidade_restante > 0) {
+        // Processa cada lote até completar a quantidade necessária
+        while (($row_lote = $result_lotes->fetch_assoc()) && $quantidade_restante > 0) {
             $lote_id = $row_lote['id'];
-            $qtd_lote = (float)$row_lote['quantidade_disponivel'];
+            $saldo_lote = (float)$row_lote['saldo_atual'];
             
-            $qtd_a_dar_baixa = min($quantidade_restante, $qtd_lote);
+            // Define quanto será baixado deste lote
+            $quantidade_baixar = min($quantidade_restante, $saldo_lote);
 
-            // 4b. Atualiza o lote
-            $stmt_lote_update->bind_param("dii", $qtd_a_dar_baixa, $venda_id, $lote_id);
-            if (!$stmt_lote_update->execute()) throw new Exception("Erro ao dar baixa no Lote ID {$lote_id}: " . $stmt_lote_update->error);
+            // Atualiza o saldo do lote
+            $stmt_lote_update->bind_param("di", $quantidade_baixar, $lote_id);
+            if (!$stmt_lote_update->execute()) {
+                throw new Exception("Erro ao atualizar saldo do lote {$lote_id}: " . $stmt_lote_update->error);
+            }
 
-            $quantidade_restante -= $qtd_a_dar_baixa;
+            // Registra a movimentação de estoque
+            $stmt_movimentacao->bind_param("iidii", 
+                $lote_id, 
+                $produto_id, 
+                $quantidade_baixar, 
+                $usuario_id, 
+                $venda_id
+            );
+            if (!$stmt_movimentacao->execute()) {
+                throw new Exception("Erro ao registrar movimentação de estoque: " . $stmt_movimentacao->error);
+            }
+
+            // Insere o item de venda com os dados do lote
+            $stmt_item->bind_param("iiddsss", 
+                $venda_id, 
+                $produto_id, 
+                $quantidade_baixar, 
+                $preco_unitario,
+                $row_lote['num_lote'],
+                $row_lote['status_lote'],
+                $row_lote['data_vencimento']
+            );
+            if (!$stmt_item->execute()) {
+                throw new Exception("Erro ao inserir item de venda: " . $stmt_item->error);
+            }
+
+            $quantidade_restante -= $quantidade_baixar;
         }
 
         $stmt_lotes->close();
 
-        // Verifica se a baixa foi completa
+        // Verifica se toda a quantidade foi atendida
         if ($quantidade_restante > 0.001) { // Usa 0.001 para lidar com erros de float
-             throw new Exception("Estoque insuficiente para o Produto ID {$produto_id}. Faltam " . number_format($quantidade_restante, 2) . " unidades.");
+            throw new Exception("Estoque insuficiente para o Produto ID {$produto_id}. Faltam " . number_format($quantidade_restante, 3) . " unidades.");
         }
-
-        // 4c. Atualiza o estoque total do produto na tabela 'produtos'
-        $stmt_estoque_update->bind_param("di", $quantidade, $produto_id);
-        if (!$stmt_estoque_update->execute()) throw new Exception("Erro ao atualizar estoque do produto: " . $stmt_estoque_update->error);
     }
     
-    // 5. Finaliza as transações
+    // 5. Fecha os statements
     $stmt_item->close();
     $stmt_lote_update->close();
-    $stmt_estoque_update->close();
+    $stmt_movimentacao->close();
     
+    // Commit da transação
     $conn->commit();
+    $sucesso = true;
     
 } catch (Exception $e) {
-    // 6. Em caso de erro, desfaz tudo (Rollback)
+    // 6. Em caso de erro, desfaz tudo
     $conn->rollback();
     $sucesso = false;
     $error_msg = $e->getMessage();
-    error_log("Erro no processamento da transação: " . $error_msg);
+    error_log("Erro no processamento da venda: " . $error_msg);
+} finally {
+    $conn->close();
 }
-
-$conn->close();
 
 // 7. Redirecionamento Final
 if ($sucesso) {
     header("Location: painel_pedidos.php?success=venda_registrada&id=" . $venda_id . "&tipo=" . urlencode($tipo_transacao));
     exit();
 } else {
-    // Redireciona de volta para o formulário com a mensagem de erro
     header("Location: lancamento_venda.php?error=" . urlencode("Falha no lançamento da Transação. Detalhe: " . $error_msg));
     exit();
 }
-
 ?>
