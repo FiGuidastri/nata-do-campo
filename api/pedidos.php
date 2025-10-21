@@ -1,75 +1,134 @@
 <?php
-// api_pedidos.php - Retorna a lista dos últimos pedidos em formato JSON com dados completos.
-// Versão revisada para garantir o fluxo de dados e debug.
+/**
+ * api_pedidos.php - API de pedidos/vendas
+ * 
+ * Endpoints:
+ * GET /api/pedidos.php - Lista os últimos pedidos (com suporte a filtros)
+ * GET /api/pedidos.php?id=X - Retorna detalhes de um pedido específico
+ */
 
-// Importa a conexão ANTES da verificação de sessão (prática mais segura)
-require_once 'conexao.php'; 
-require_once 'verifica_sessao.php'; 
+require_once __DIR__ . '/../includes/verifica_sessao.php';
+require_once __DIR__ . '/../config/conexao.php';
 
-// Define o cabeçalho para retornar JSON
+// Headers
 header('Content-Type: application/json');
-header('Cache-Control: no-cache, must-revalidate'); // Ajuda a evitar cache de dados antigos
+header('Cache-Control: no-cache, must-revalidate');
+header('Access-Control-Allow-Methods: GET');
 
-$response = ['pedidos' => [], 'error' => null];
-
-// 1. VERIFICAÇÃO CRÍTICA DE CONEXÃO
-if (!isset($conn) || $conn->connect_error) {
-    $response['error'] = 'Falha Crítica (PHP): Conexão com o Banco de Dados não estabelecida.';
-    error_log("Erro de Conexão em api_pedidos.php: " . ($conn->connect_error ?? 'Variavel $conn não existe'));
-    echo json_encode($response);
-    exit;
-}
-
-$COLUNA_VENDEDOR_ID = 'usuario_vendedor'; 
+// Inicializa a resposta
+$response = [
+    'success' => false,
+    'data' => null,
+    'message' => ''
+];
 
 try {
-    $sql = "
-        SELECT 
-            v.id AS venda_id, 
-            v.valor_total, 
-            v.status,
-            DATE_FORMAT(v.data_venda, '%d/%m/%Y %H:%i') AS data_venda_formatada,
-            DATE_FORMAT(v.data_entrega, '%d/%m/%Y') AS data_entrega_formatada,
-            
-            c.nome_cliente, 
-            c.codigo_cliente, 
-            c.cnpj, 
-            
-            tc.nome AS tipo_cliente_nome, 
-            u.nome AS nome_vendedor 
-        FROM vendas v
-        JOIN clientes c ON v.cliente_id = c.id
-        -- USANDO 'tipos_cliente' conforme seu código anterior. Se falhar, use 'tipo_cliente'.
-        LEFT JOIN tipos_cliente tc ON c.tipo_cliente_id = tc.id 
-        LEFT JOIN usuarios u ON v.{$COLUNA_VENDEDOR_ID} = u.id 
-        ORDER BY v.data_venda DESC 
-        LIMIT 100
-    ";
+    // Parâmetros de filtro
+    $pedido_id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
+    $status = filter_input(INPUT_GET, 'status', FILTER_SANITIZE_STRING);
+    $cliente = filter_input(INPUT_GET, 'cliente', FILTER_SANITIZE_STRING);
+    $data_inicio = filter_input(INPUT_GET, 'data_inicio', FILTER_SANITIZE_STRING);
+    $data_fim = filter_input(INPUT_GET, 'data_fim', FILTER_SANITIZE_STRING);
+    $limit = filter_input(INPUT_GET, 'limit', FILTER_VALIDATE_INT) ?: 100;
 
-    $result = $conn->query($sql);
+    // Query base
+    $sql = "SELECT 
+                v.id AS venda_id,
+                v.valor_total,
+                v.status,
+                v.data_venda,
+                v.data_entrega,
+                DATE_FORMAT(v.data_venda, '%d/%m/%Y %H:%i') AS data_venda_formatada,
+                DATE_FORMAT(v.data_entrega, '%d/%m/%Y') AS data_entrega_formatada,
+                c.nome_cliente,
+                c.codigo_cliente,
+                c.cnpj,
+                tc.nome AS tipo_cliente_nome,
+                u.nome AS nome_vendedor
+            FROM vendas v
+            JOIN clientes c ON v.cliente_id = c.id
+            LEFT JOIN tipos_cliente tc ON c.tipo_cliente_id = tc.id
+            LEFT JOIN usuarios u ON v.usuario_vendedor = u.id";
 
-    if ($result === FALSE) {
-        // Se a consulta SQL falhar (ex: nome de coluna/tabela incorreto)
-        throw new Exception("Erro na consulta SQL. Detalhe: " . $conn->error);
+    $where = [];
+    $params = [];
+    $types = '';
+
+    // Construção dinâmica da query baseada nos filtros
+    if ($pedido_id) {
+        $where[] = "v.id = ?";
+        $params[] = $pedido_id;
+        $types .= 'i';
+    }
+    if ($status) {
+        $where[] = "v.status = ?";
+        $params[] = $status;
+        $types .= 's';
+    }
+    if ($cliente) {
+        $where[] = "(c.nome_cliente LIKE ? OR c.codigo_cliente LIKE ? OR c.cnpj LIKE ?)";
+        $params[] = "%$cliente%";
+        $params[] = "%$cliente%";
+        $params[] = "%$cliente%";
+        $types .= 'sss';
+    }
+    if ($data_inicio) {
+        $where[] = "DATE(v.data_venda) >= ?";
+        $params[] = $data_inicio;
+        $types .= 's';
+    }
+    if ($data_fim) {
+        $where[] = "DATE(v.data_venda) <= ?";
+        $params[] = $data_fim;
+        $types .= 's';
     }
 
-    while ($row = $result->fetch_assoc()) { 
-        // Conversão de valor para float para garantir o formato correto no JSON
-        $row['valor_total'] = floatval($row['valor_total']);
-        $response['pedidos'][] = $row; 
+    // Adiciona as condições WHERE se houver
+    if (!empty($where)) {
+        $sql .= " WHERE " . implode(" AND ", $where);
+    }
+
+    // Ordenação e limite
+    $sql .= " ORDER BY v.data_venda DESC LIMIT ?";
+    $params[] = $limit;
+    $types .= 'i';
+
+    // Prepara e executa a query
+    $stmt = $conn->prepare($sql);
+    if ($params) {
+        $stmt->bind_param($types, ...$params);
+    }
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    if ($result->num_rows > 0) {
+        $pedidos = [];
+        while ($row = $result->fetch_assoc()) {
+            // Formatação dos dados
+            $row['valor_total'] = floatval($row['valor_total']);
+            $pedidos[] = $row;
+        }
+        
+        $response['data'] = $pedido_id ? $pedidos[0] : $pedidos;
+        $response['success'] = true;
+        $response['message'] = 'Pedidos encontrados com sucesso.';
+    } else {
+        $response['message'] = 'Nenhum pedido encontrado.';
+        http_response_code(404);
     }
 
 } catch (Exception $e) {
-    // Captura erros de lógica ou SQL
     error_log("Erro em api_pedidos.php: " . $e->getMessage());
-    $response['error'] = 'Falha no servidor ao carregar pedidos. ' . $e->getMessage();
-    $response['pedidos'] = [];
+    $response['message'] = 'Erro ao buscar pedidos: ' . $e->getMessage();
+    http_response_code(500);
 } finally {
+    if (isset($stmt)) {
+        $stmt->close();
+    }
     if (isset($conn)) {
         $conn->close();
     }
 }
 
-// Se o script chegou aqui, a saída deve ser um JSON válido.
 echo json_encode($response);
 ?>

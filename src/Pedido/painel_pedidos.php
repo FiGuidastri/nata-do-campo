@@ -1,7 +1,7 @@
 <?php
 // painel_pedidos.php - Histórico com foco em Cliente, Logística e Financeiro.
-require_once 'verifica_sessao.php'; 
-require_once 'conexao.php'; // Inclui a conexão para o PHP se necessário, mas o principal é o JS/API.
+require_once __DIR__ . '/../../includes/verifica_sessao.php';
+require_once __DIR__ . '/../../config/conexao.php';
 
 // Assumindo que verifica_sessao.php define $usuario_logado
 $usuario_privilegio = isset($usuario_logado['privilegio']) ? $usuario_logado['privilegio'] : 'Visitante';
@@ -12,9 +12,12 @@ $usuario_privilegio = isset($usuario_logado['privilegio']) ? $usuario_logado['pr
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Painel de Pedidos | Nata do Campo</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="<?php echo url('/public/assets/css/style.css'); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script>
+        const BASE_URL = '<?php echo BASE_URL; ?>';
+    </script>
     <style>
         /* Estilos do novo painel de layout e Clube Nata */
         .painel-principal-grid {
@@ -163,7 +166,7 @@ $usuario_privilegio = isset($usuario_logado['privilegio']) ? $usuario_logado['pr
         async function carregarPontosClube() {
             try {
                 // Supondo que api_clube_nata_vendedor.php exista para este painel
-                const response = await fetch('api_clube_nata_vendedor.php'); 
+                const response = await fetch(BASE_URL + '/api/clube_nata_vendedor.php'); 
                 const data = await response.json();
                 const tbody = document.getElementById('tabela_club_nata');
                 tbody.innerHTML = ''; 
@@ -189,7 +192,7 @@ $usuario_privilegio = isset($usuario_logado['privilegio']) ? $usuario_logado['pr
             }
 
             try {
-                const response = await fetch('api_valida_pedido.php', { 
+                const response = await fetch(BASE_URL + '/api/valida_pedido.php', { 
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: `venda_id=${vendaId}&status=${novoStatus}`
@@ -254,7 +257,7 @@ $usuario_privilegio = isset($usuario_logado['privilegio']) ? $usuario_logado['pr
         async function carregarPedidos() {
             try {
                 // Chama a API de Pedidos
-                const response = await fetch('api_pedidos.php'); 
+                const response = await fetch(BASE_URL + '/api/pedidos.php'); 
                 const data = await response.json();
                 const tbody = document.getElementById('tabela_pedidos');
                 tbody.innerHTML = ''; 

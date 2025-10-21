@@ -1,81 +1,147 @@
 <?php
-// api_valida_pedido.php - Processa a mudança de status do pedido.
-require_once 'conexao.php';
-require_once 'verifica_sessao.php';
+/**
+ * api_valida_pedido.php - API para validação e mudança de status de pedidos
+ * 
+ * Endpoint:
+ * POST /api/valida_pedido.php
+ * Body: venda_id (int), status (string)
+ */
 
+require_once __DIR__ . '/../includes/verifica_sessao.php';
+require_once __DIR__ . '/../config/conexao.php';
+require_once __DIR__ . '/../src/Utils/estoque_util.php';
+
+// Headers
 header('Content-Type: application/json');
+header('Access-Control-Allow-Methods: POST');
 
-$response = ['success' => false, 'message' => ''];
+// Inicializa a resposta
+$response = [
+    'success' => false,
+    'data' => null,
+    'message' => ''
+];
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['venda_id'], $_POST['status'])) {
-    $response['message'] = 'Requisição inválida.';
+// Verifica privilégios
+if (!in_array($usuario_logado['privilegio'], ['Admin', 'Gestor'])) {
+    http_response_code(403);
+    $response['message'] = 'Acesso negado. Apenas Administradores e Gestores podem validar pedidos.';
     echo json_encode($response);
     exit;
 }
 
-$venda_id = (int)$_POST['venda_id'];
-$novo_status = $_POST['status'];
-$usuario_validador_id = $usuario_logado['id']; 
+// Validação do método e parâmetros
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    $response['message'] = 'Método não permitido. Use POST.';
+    echo json_encode($response);
+    exit;
+}
 
-$conn->begin_transaction(); 
+// Validação dos dados recebidos
+$venda_id = filter_input(INPUT_POST, 'venda_id', FILTER_VALIDATE_INT);
+$novo_status = filter_input(INPUT_POST, 'status', FILTER_SANITIZE_STRING);
+
+if (!$venda_id || !$novo_status) {
+    http_response_code(400);
+    $response['message'] = 'Dados inválidos. Forneça venda_id e status válidos.';
+    echo json_encode($response);
+    exit;
+}
+
+// Status permitidos
+$status_permitidos = ['Liberado', 'Entrega', 'Faturado', 'Rejeitado', 'Cancelado'];
+if (!in_array($novo_status, $status_permitidos)) {
+    http_response_code(400);
+    $response['message'] = 'Status inválido. Status permitidos: ' . implode(', ', $status_permitidos);
+    echo json_encode($response);
+    exit;
+}
+
+$conn->begin_transaction();
 
 try {
-    // A baixa de estoque só acontece se o novo status for 'Faturado'.
-    if ($novo_status === 'Faturado') {
-        require_once 'estoque_util.php'; 
-        
-        if (!function_exists('baixaEstoqueFIFO')) {
-             throw new Exception("Erro interno: Função de baixa de estoque ausente.");
-        }
+    // Verifica se o pedido existe e seu status atual
+    $stmt = $conn->prepare("SELECT status FROM vendas WHERE id = ?");
+    $stmt->bind_param("i", $venda_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    if ($result->num_rows === 0) {
+        throw new Exception("Pedido #$venda_id não encontrado.");
+    }
+    
+    $status_atual = $result->fetch_assoc()['status'];
+    
+    // Valida a transição de status
+    $transicoes_permitidas = [
+        'Pendente' => ['Liberado', 'Rejeitado'],
+        'Liberado' => ['Entrega', 'Faturado', 'Cancelado'],
+        'Entrega' => ['Faturado', 'Cancelado'],
+        'Faturado' => [],
+        'Rejeitado' => [],
+        'Cancelado' => []
+    ];
+    
+    if (!isset($transicoes_permitidas[$status_atual]) || 
+        !in_array($novo_status, $transicoes_permitidas[$status_atual])) {
+        throw new Exception("Transição de status inválida: de '$status_atual' para '$novo_status'");
+    }
 
+    // Se vai faturar, processa a baixa de estoque
+    if ($novo_status === 'Faturado') {
         $baixa_result = baixaEstoqueFIFO($conn, $venda_id);
-        
         if (!$baixa_result['success']) {
-            // Se a baixa falhou, lançamos uma exceção para o catch,
-            // mas mantemos a mensagem limpa da função para facilitar o tratamento.
-            throw new Exception("ERRO_ESTOQUE_FIFO: " . $baixa_result['message']);
+            throw new Exception("ERRO_ESTOQUE: " . $baixa_result['message']);
         }
     }
     
-    // ATUALIZA O STATUS DA VENDA
-    // Usando 'usuario_validador' conforme a sua tabela
-    $stmt = $conn->prepare("UPDATE vendas SET status = ?, usuario_validador = ?, data_validacao = NOW() WHERE id = ?");
-    $stmt->bind_param("sii", $novo_status, $usuario_validador_id, $venda_id);
+    // Atualiza o status do pedido
+    $stmt = $conn->prepare("
+        UPDATE vendas 
+        SET status = ?, 
+            usuario_validador = ?, 
+            data_validacao = NOW() 
+        WHERE id = ?
+    ");
+    $stmt->bind_param("sii", $novo_status, $usuario_logado['id'], $venda_id);
     
     if (!$stmt->execute()) {
-        throw new Exception("Erro ao atualizar status da venda: " . $stmt->error);
+        throw new Exception("Erro ao atualizar status: " . $stmt->error);
     }
     
-    // COMITE A TRANSAÇÃO
+    // Se chegou até aqui, commit da transação
     $conn->commit();
+    
     $response['success'] = true;
-    $response['message'] = "Pedido #$venda_id atualizado para '$novo_status' com sucesso." . 
-                           ($novo_status === 'Faturado' ? " Baixa de estoque FIFO realizada." : "");
+    $response['data'] = [
+        'venda_id' => $venda_id,
+        'status_anterior' => $status_atual,
+        'novo_status' => $novo_status,
+        'data_validacao' => date('Y-m-d H:i:s')
+    ];
+    $response['message'] = "Pedido #$venda_id atualizado para '$novo_status' com sucesso.";
 
 } catch (Exception $e) {
-    // ROLLBACK 
     $conn->rollback();
     
-    $errorMessage = $e->getMessage();
+    $error_message = $e->getMessage();
+    $is_estoque_error = strpos($error_message, "ERRO_ESTOQUE:") === 0;
     
-    // Tenta identificar o erro específico de estoque
-    if (strpos($errorMessage, "ERRO_ESTOQUE_FIFO:") === 0) {
-        // Remove nosso marcador e formata a mensagem de forma profissional
-        $estoque_detail = trim(substr($errorMessage, strlen("ERRO_ESTOQUE_FIFO:")));
+    http_response_code($is_estoque_error ? 409 : 500);
+    $response['message'] = $is_estoque_error 
+        ? "Falha no faturamento: " . substr($error_message, strlen("ERRO_ESTOQUE:"))
+        : "Erro ao processar pedido: " . $error_message;
         
-        // Exemplo: "Estoque zero para o Produto ID 5."
-        $response['message'] = "Faturamento NÃO REALIZADO: O pedido não pôde ser faturado por falta de estoque. Detalhe: " . $estoque_detail;
-        
-    } else {
-        // Para todos os outros erros (SQL, conexao, etc.)
-        error_log("Erro crítico no processamento do pedido #$venda_id: " . $errorMessage);
-        $response['message'] = "Falha crítica no processamento. Ação desfeita. Por favor, tente novamente ou contate o suporte. Detalhe: " . $errorMessage;
-    }
-    
-    $response['error_details'] = $errorMessage; // Mantém o detalhe completo no JSON para debug
+    error_log("Erro na validação do pedido #$venda_id: " . $error_message);
+
 } finally {
-    if (isset($stmt)) $stmt->close();
-    // A conexão é fechada automaticamente no final do script.
+    if (isset($stmt)) {
+        $stmt->close();
+    }
+    if (isset($conn)) {
+        $conn->close();
+    }
 }
 
 echo json_encode($response);

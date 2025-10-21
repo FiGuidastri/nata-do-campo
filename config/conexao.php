@@ -1,28 +1,37 @@
 <?php
-// conexao.php - Configurações de Conexão MySQL
-// Usuário do banco: joaoco37_pedidos
-// Banco de dados: joaoco37_pedidos
+/**
+ * conexao.php - Configurações de Conexão MySQL
+ */
 
-// --- Configurações Com Suas Credenciais ---
-define('DB_SERVER', 'localhost');
-define('DB_USERNAME', 'joaoco37_pedidos'); 
-// 🚨 O PONTO CRÍTICO: COLOQUE A SENHA DO SEU USUÁRIO MYSQL (JOAOCO37_PEDIDOS) AQUI!
-define('DB_PASSWORD', 'Equipe@321'); 
-define('DB_NAME', 'joaoco37_pedidos'); 
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/../src/Database/Database.php';
 
-// --- Tentativa de Conexão ---
-$conn = new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
-
-if ($conn->connect_error) {
-    // Se falhar, exibe uma mensagem clara de ERRO FATAL DE CONEXÃO
-    die("
-    <div style='border: 2px solid red; padding: 20px; margin: 50px auto; width: 80%; background-color: #fdd; font-family: Arial;'>
-        <h2>ERRO CRÍTICO DE CONEXÃO COM O BANCO DE DADOS!</h2>
-        <p><strong>Causa provável:</strong> Senha do MySQL incorreta no arquivo <code>conexao.php</code>.</p>
-        <p><strong>Detalhe Técnico:</strong> Falha de conexão: " . $conn->connect_error . "</p>
-        <p><strong>Ação:</strong> Edite o arquivo <code>conexao.php</code> e insira a senha correta na linha <code>define('DB_PASSWORD', 'SUA_SENHA_DO_MYSQL_AQUI');</code>.</p>
-    </div>
-    ");
+// Inicia conexão usando singleton
+try {
+    $db = Database::getInstance();
+    $conn = new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
+    
+    if ($conn->connect_error) {
+        throw new Exception("Falha na conexão: " . $conn->connect_error);
+    }
+    
+    $conn->set_charset("utf8");
+    
+} catch (Exception $e) {
+    if (APP_ENV === 'development') {
+        die("
+        <div style='border: 2px solid red; padding: 20px; margin: 50px auto; width: 80%; background-color: #fdd; font-family: Arial;'>
+            <h2>ERRO CRÍTICO DE CONEXÃO COM O BANCO DE DADOS!</h2>
+            <p><strong>Causa provável:</strong> " . htmlspecialchars($e->getMessage()) . "</p>
+            <p><strong>Detalhes:</strong></p>
+            <pre>" . htmlspecialchars($e->getTraceAsString()) . "</pre>
+            <p><strong>Ação:</strong> Verifique as configurações no arquivo <code>.env</code> e certifique-se que o banco de dados está acessível.</p>
+        </div>
+        ");
+    } else {
+        // Em produção, mostra mensagem genérica
+        http_response_code(500);
+        die("Erro de conexão com o banco de dados. Por favor, tente novamente mais tarde.");
+    }
 }
-$conn->set_charset("utf8");
 ?>

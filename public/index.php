@@ -1,14 +1,14 @@
 <?php
 // index.php - Ponto de entrada moderno. Redireciona para o Painel de Pedidos se logado.
-session_start();
+require_once __DIR__ . '/../config/config.php';
 
-// Definições do Sistema (Ajuste se você tiver um arquivo de constantes)
+// Definições do Sistema
 const APP_NAME = 'Nata do Campo';
 const COMPANY_NAME = 'Laticínios AMB';
 
 // Se logado, redireciona para a tela central
 if (isset($_SESSION['loggedin']) && $_SESSION['loggedin'] === true) {
-    header("Location: painel_pedidos.php");
+    header("Location: " . url('/public/dashboard/painel_pedidos.php'));
     exit;
 }
 

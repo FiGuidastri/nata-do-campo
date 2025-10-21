@@ -322,7 +322,7 @@ CREATE TABLE `usuarios` (
 --
 
 INSERT INTO `usuarios` (`id`, `nome`, `email`, `senha_hash`, `privilegio`, `ativo`, `data_criacao`) VALUES
-(1, 'Joao Coelho', 'admin@natadocampo.com.br', '$2y$10$o5Zxq9a.nEZsi0al7Z8JQuuzcbk6sE634LVWlia7gjZhAQC8V5Nr.', 'Admin', 1, '2025-10-09 20:16:32'),
+(1, 'Joao Coelho', 'admin@natadocampo.com.br', '$2a$10$86bz.Wnuzo/5UJChhKriUeD5iT/rZwWLznU7V/1AkhBJ27xjNjOWK', 'Admin', 1, '2025-10-09 20:16:32'),
 (2, 'Luciana', 'luciana@natadocampo.com.br', '$2y$10$L1lIOsAO243siMd71jJt.uBbujcnEH1oGul1/PywIaqHp9jxoeERa', 'Vendedor', 1, '2025-10-09 17:17:16'),
 (3, 'Controladoria', 'controladoria@natadocampo.com.br', '$2y$10$cKo5MdS1YljvELk/t9TW/O6p2Mdqhe3aYiPohHLA.KtoYydQa3ZGu', 'Gestor', 1, '2025-10-09 17:17:16'),
 (11, 'Tarlis Gregório', 'tarlis@natadocampo.com.br', '$2y$10$lpMkK9qn4SZUohNYF32GGemdibIZh78uuQ94oIt6mgzbV98TalpZW', 'Industria', 1, '2025-10-13 13:05:30');
